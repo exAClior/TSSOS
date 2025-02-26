@@ -8,10 +8,14 @@ f1 = x[1]^4 + (x[1] * x[2] - 1)^2
 f2 = x[2]^2 * x[3]^2 + (x[3]^2 - 1)^2
 
 f = f1 + f2
+arch = 3 - sum(x[1]^2 + x[2]^2)
+arch2 = 3 - sum(x[2]^2 + x[3]^2)
 
 opt, sol, data = cs_tssos_first([f], x, 2, CS=false, TS=false, solver= "COSMO")
+# opt, sol, data = cs_tssos_first([f;arch;arch2], x, 2, CS=false, TS=false, solver= "COSMO")
 
 # need to use COSMO otherwise this will stop due to slow progress
+# opt, sol, data = cs_tssos_first([f;arch;arch2], x, 2, TS=false, solver= "COSMO")
 opt, sol, data = cs_tssos_first([f], x, 2, TS=false, solver= "COSMO")
 
 # load data needed to construct sdp
@@ -38,9 +42,18 @@ cs_data = deserialize("./example/data/cs_solvesdp_input_data.jls")
 @assert !dense_data["tune"]
 @assert !cs_data["tune"]
 
-
 @assert !dense_data["dualize"]
 @assert !cs_data["dualize"]
+
+@assert dense_data["solve"]
+@assert cs_data["solve"]
+
+
+dense_data["blocksize"]
+cs_data["blocksize"]
+
+dense_data["cql"]
+cs_data["cql"]
 
 dense_data["cl"]
 cs_data["cl"]

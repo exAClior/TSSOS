@@ -272,23 +272,16 @@ function solvesdp_debug(n, m, supp::Vector{Vector{Vector{UInt16}}}, coe, basis, 
     sort!(tsupp)
     unique!(tsupp)
 
+    display(tsupp)
+
     ksupp = tsupp
     objv = moment = GramMat = multiplier_equality = SDP_status = nothing
-    if solve == true
         ltsupp = length(tsupp)
         if QUIET == false
             println("Assembling the SDP...")
             println("There are $ltsupp affine constraints.")
         end
-        if solver == "Mosek"
-            model = Model(optimizer_with_attributes(Mosek.Optimizer, "MSK_DPAR_INTPNT_CO_TOL_PFEAS" => mosek_setting.tol_pfeas, "MSK_DPAR_INTPNT_CO_TOL_DFEAS" => mosek_setting.tol_dfeas,
-                "MSK_DPAR_INTPNT_CO_TOL_REL_GAP" => mosek_setting.tol_relgap, "MSK_DPAR_OPTIMIZER_MAX_TIME" => mosek_setting.time_limit, "MSK_IPAR_NUM_THREADS" => mosek_setting.num_threads))
-        elseif solver == "COSMO"
-            model = Model(optimizer_with_attributes(COSMO.Optimizer, "eps_abs" => cosmo_setting.eps_abs, "eps_rel" => cosmo_setting.eps_rel, "max_iter" => cosmo_setting.max_iter, "time_limit" => cosmo_setting.time_limit))
-        else
-            @error "The solver is currently not supported!"
-            return nothing,nothing,nothing,nothing
-        end
+        model = Model(optimizer_with_attributes(COSMO.Optimizer, "eps_abs" => cosmo_setting.eps_abs, "eps_rel" => cosmo_setting.eps_rel, "max_iter" => cosmo_setting.max_iter, "time_limit" => cosmo_setting.time_limit))
         set_optimizer_attribute(model, MOI.Silent(), QUIET)
         time = @elapsed begin
         cons = [AffExpr(0) for i=1:ltsupp]
@@ -412,15 +405,10 @@ function solvesdp_debug(n, m, supp::Vector{Vector{Vector{UInt16}}}, coe, basis, 
                 end
             end
         end
-        if solution == true
-            measure = -dual.(con)
-            moment = get_moment(measure, tsupp, cliques, cql, cliquesize, nb=nb)
-        end
         if Mommat == true
             measure = -dual.(con)
             moment = get_moment(measure, tsupp, cliques, cql, cliquesize, basis=basis, nb=nb)
         end
-    end
     return objv,ksupp,moment,GramMat,multiplier_equality,SDP_status, model
 end
 
