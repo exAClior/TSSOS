@@ -18,6 +18,8 @@ using Random
 # using Hypatia
 # using SDPT3
 # using SDPNAL
+#
+using Serialization
 
 export tssos_first, tssos_higher!, cs_tssos_first, cs_tssos_higher!, local_solution, refine_sol,
 cosmo_para, mosek_para, add_psatz!, add_poly!, get_nbasis, get_moment, get_moment_matrix, get_cmoment, homogenize, 

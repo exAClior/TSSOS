@@ -322,6 +322,7 @@ end
 
 function solvesdp(n, supp, coe, basis, blocks, cl, blocksize; nb=0, solver="Mosek", feasible=false, QUIET=true, solve=true, 
     TS="block", solution=false, MomentOne=false, Gram=false, cosmo_setting=cosmo_para(), mosek_setting=mosek_para(), dualize=false)
+    @show "YOOOOOOOOOOOLLLLLLOOOOOO!!!!!"
     tsupp = zeros(UInt8, n, Int(sum(Int.(blocksize).^2+blocksize)/2))
     k = 1
     for i = 1:cl, j = 1:blocksize[i], r = j:blocksize[i]

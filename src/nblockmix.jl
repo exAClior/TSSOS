@@ -138,6 +138,47 @@ function cs_tssos_first(supp::Vector{Vector{Vector{UInt16}}}, coe, n, d; numeq=0
         mb = maximum(maximum.([maximum.(blocksize[i]) for i = 1:cql]))
         println("Obtained the block structure in $time seconds.\nThe maximal size of blocks is $mb.")
     end
+
+    # Serialize all variables used in solvesdp
+    serialize_data = Dict(
+        "n" => n,
+        "m" => m,
+        "supp" => supp,
+        "coe" => coe,
+        "basis" => basis,
+        "hbasis" => hbasis,
+        "cliques" => cliques,
+        "cql" => cql,
+        "cliquesize" => cliquesize,
+        "I" => I,
+        "J" => J,
+        "ncc" => ncc,
+        "blocks" => blocks,
+        "eblocks" => eblocks,
+        "cl" => cl,
+        "blocksize" => blocksize,
+        "numeq" => numeq,
+        "nb" => nb,
+        "signsymmetry" => ss,
+        "TS" => TS,
+        "ksupp" => ksupp,
+        "solver" => solver,
+        "tune" => tune,
+        "dualize" => dualize,
+        "solve" => solve,
+        "solution" => solution,
+        "MomentOne" => MomentOne,
+        "Gram" => Gram,
+        "NormalSparse"=>NormalSparse,
+        "Mommat" => Mommat,
+        "cosmo_setting" => cosmo_setting,
+        "mosek_setting" => mosek_setting,
+        "normality" => normality,
+        "QUIET" => QUIET,
+    )
+
+    # serialize("./example/data/cs_solvesdp_input_data.jls", serialize_data)
+
     opt,ksupp,moment,GramMat,multiplier_equality,SDP_status = solvesdp(n, m, supp, coe, basis, hbasis, cliques, cql, cliquesize, I, J, ncc, blocks, eblocks, cl, blocksize, numeq=numeq, 
     nb=nb, QUIET=QUIET, signsymmetry=ss, TS=TS, solver=solver, tune=tune, dualize=dualize, solve=solve, solution=solution, MomentOne=MomentOne, Gram=Gram, Mommat=Mommat, 
     cosmo_setting=cosmo_setting, mosek_setting=mosek_setting, normality=normality, NormalSparse=NormalSparse)
@@ -219,9 +260,380 @@ function cs_tssos_higher!(data::mcpop_data; TS="block", merge=false, md=3, QUIET
     return opt,sol,data
 end
 
+function solvesdp_debug(n, m, supp::Vector{Vector{Vector{UInt16}}}, coe, basis, hbasis, cliques, cql, cliquesize, I, J, ncc, blocks, eblocks, cl, blocksize;
+    numeq=0, nb=0, QUIET=false, TS="block", solver="Mosek", tune=false, solve=true, solution=false, Gram=false, MomentOne=false, signsymmetry=nothing,
+    Mommat=false, cosmo_setting=cosmo_para(), mosek_setting=mosek_para(), dualize=false, normality=false, NormalSparse=false)
+    tsupp = Vector{UInt16}[]
+    for i = 1:cql, j = 1:cl[i][1], k = 1:blocksize[i][1][j], r = k:blocksize[i][1][j]
+        @inbounds bi = sadd(basis[i][1][blocks[i][1][j][k]], basis[i][1][blocks[i][1][j][r]], nb=nb)
+        push!(tsupp, bi)
+    end
+    if TS != false && TS != "signsymmetry"
+        for i = 1:cql
+            for (j, w) in enumerate(I[i]), l = 1:cl[i][j+1], t = 1:blocksize[i][j+1][l], r = t:blocksize[i][j+1][l], s = 1:length(supp[w+1])
+                ind1 = blocks[i][j+1][l][t]
+                ind2 = blocks[i][j+1][l][r]
+                @inbounds bi = sadd(sadd(basis[i][j+1][ind1], supp[w+1][s], nb=nb), basis[i][j+1][ind2], nb=nb)
+                push!(tsupp, bi)
+            end
+            for (j, w) in enumerate(J[i]), k in eblocks[i][j], item in supp[w+1]
+                @inbounds bi = sadd(hbasis[i][j][k], item, nb=nb)
+                push!(tsupp, bi)
+            end
+        end
+        for i ∈ ncc, j = 1:length(supp[i+1])
+            push!(tsupp, supp[i+1][j])
+        end
+    end
+    if (MomentOne == true || solution == true) && TS != false
+        ksupp = copy(tsupp)
+    end
+    if normality == true
+        if NormalSparse == true
+            hyblocks = Vector{Vector{Vector{Vector{UInt16}}}}(undef, cql)
+        end
+        # wbasis = Vector{Vector{Vector{UInt16}}}(undef, cql)
+        wbasis = get_sbasis(Vector(1:n), 1, nb=nb)
+        bs = length(wbasis)
+        # for s = 1:cql
+            # wbasis[s] = basis[s][1]
+            # bs = length(wbasis[s])
+            if NormalSparse == true
+                hyblocks[s] = Vector{Vector{Vector{UInt16}}}(undef, cliquesize[s])
+                for i = 1:cliquesize[s]
+                    G = SimpleGraph(2bs)
+                    for j = 1:bs, k = j:bs
+                        bi = sadd(wbasis[s][j], wbasis[s][k], nb=nb)
+                        sp = zeros(Int, n)
+                        st = sign_type(bi)
+                        sp[st] = ones(Int, length(st))
+                        if all(transpose(signsymmetry)*sp .== 0)
+                            add_edge!(G, j, k)
+                        end
+                        bi = sadd(sadd(wbasis[s][j], wbasis[s][k], nb=nb), [cliques[s][i];cliques[s][i]], nb=nb)
+                        sp = zeros(Int, n)
+                        st = sign_type(bi)
+                        sp[st] = ones(Int, length(st))
+                        if all(transpose(signsymmetry)*sp .== 0)
+                            add_edge!(G, j+bs, k+bs)
+                        end
+                        bi = sadd(sadd(wbasis[s][j], wbasis[s][k], nb=nb), [cliques[s][i]], nb=nb)
+                        sp = zeros(Int, n)
+                        st = sign_type(bi)
+                        sp[st] = ones(Int, length(st))
+                        if all(transpose(signsymmetry)*sp .== 0)
+                            add_edge!(G, j, k+bs)
+                        end
+                    end
+                    hyblocks[s][i] = connected_components(G)
+                    for l = 1:length(hyblocks[s][i])
+                        for j = 1:length(hyblocks[s][i][l]), k = j:length(hyblocks[s][i][l])
+                            if hyblocks[s][i][l][j] <= bs && hyblocks[s][i][l][k] > bs
+                                bi = sadd(sadd(wbasis[s][hyblocks[s][i][l][j]], wbasis[s][hyblocks[s][i][l][k]-bs], nb=nb), [cliques[s][i]], nb=nb)
+                                push!(tsupp, bi)
+                            elseif hyblocks[s][i][l][j] > bs
+                                bi = sadd(sadd(wbasis[s][hyblocks[s][i][l][j]-bs], wbasis[s][hyblocks[s][i][l][k]-bs], nb=nb), [cliques[s][i];cliques[s][i]], nb=nb)
+                                push!(tsupp, bi)
+                            end
+                        end
+                    end
+                end
+            else
+                # for i = 1:cliquesize[s], j = 1:bs, k = j:bs
+                for i = 1:n, j = 1:bs, k = j:bs
+                    # bi = sadd(sadd(wbasis[s][j], wbasis[s][k], nb=nb), [cliques[s][i];cliques[s][i]], nb=nb)
+                    bi = sadd(sadd(wbasis[j], wbasis[k], nb=nb), [i;i], nb=nb)
+                    push!(tsupp, bi)
+                    # bi = sadd(sadd(wbasis[s][j], wbasis[s][k], nb=nb), [cliques[s][i]], nb=nb)
+                    bi = sadd(sadd(wbasis[j], wbasis[k], nb=nb), [i], nb=nb)
+                    push!(tsupp, bi)
+                end
+            end
+        # end
+    end
+    if (MomentOne == true || solution == true) && TS != false
+        for i = 1:cql, j = 1:cliquesize[i]
+            push!(tsupp, [cliques[i][j]])
+            for k = j+1:cliquesize[i]
+                push!(tsupp, [cliques[i][j];cliques[i][k]])
+            end
+        end
+    end
+    sort!(tsupp)
+    unique!(tsupp)
+    if (MomentOne == true || solution == true) && TS != false
+        sort!(ksupp)
+        unique!(ksupp)
+    else
+        ksupp = tsupp
+    end
+    objv = moment = GramMat = multiplier_equality = SDP_status = nothing
+    if solve == true
+        ltsupp = length(tsupp)
+        if QUIET == false
+            println("Assembling the SDP...")
+            println("There are $ltsupp affine constraints.")
+        end
+        if solver == "Mosek"
+            if dualize == false
+                model = Model(optimizer_with_attributes(Mosek.Optimizer, "MSK_DPAR_INTPNT_CO_TOL_PFEAS" => mosek_setting.tol_pfeas, "MSK_DPAR_INTPNT_CO_TOL_DFEAS" => mosek_setting.tol_dfeas,
+                "MSK_DPAR_INTPNT_CO_TOL_REL_GAP" => mosek_setting.tol_relgap, "MSK_DPAR_OPTIMIZER_MAX_TIME" => mosek_setting.time_limit, "MSK_IPAR_NUM_THREADS" => mosek_setting.num_threads))
+            else
+                model = Model(dual_optimizer(Mosek.Optimizer))
+            end
+            if tune == true
+                set_optimizer_attributes(model,
+                "MSK_DPAR_INTPNT_CO_TOL_MU_RED" => 1e-7,
+                "MSK_DPAR_INTPNT_CO_TOL_INFEAS" => 1e-7,
+                "MSK_DPAR_INTPNT_CO_TOL_REL_GAP" => 1e-7,
+                "MSK_DPAR_INTPNT_CO_TOL_DFEAS" => 1e-7,
+                "MSK_DPAR_INTPNT_CO_TOL_PFEAS" => 1e-7,
+                "MSK_DPAR_INTPNT_CO_TOL_NEAR_REL" => 1e6,
+                "MSK_IPAR_BI_IGNORE_NUM_ERROR" => 1,
+                "MSK_DPAR_BASIS_TOL_X" => 1e-3,
+                "MSK_DPAR_BASIS_TOL_S" => 1e-3,
+                "MSK_DPAR_BASIS_REL_TOL_S" => 1e-5)
+            end
+        elseif solver == "COSMO"
+            model = Model(optimizer_with_attributes(COSMO.Optimizer, "eps_abs" => cosmo_setting.eps_abs, "eps_rel" => cosmo_setting.eps_rel, "max_iter" => cosmo_setting.max_iter, "time_limit" => cosmo_setting.time_limit))
+        elseif solver == "SDPT3"
+            model = Model(optimizer_with_attributes(SDPT3.Optimizer))
+        elseif solver == "SDPNAL"
+            model = Model(optimizer_with_attributes(SDPNAL.Optimizer))
+        else
+            @error "The solver is currently not supported!"
+            return nothing,nothing,nothing,nothing
+        end
+        set_optimizer_attribute(model, MOI.Silent(), QUIET)
+        time = @elapsed begin
+        cons = [AffExpr(0) for i=1:ltsupp]
+        if normality == true
+            # for s = 1:cql
+                # bs = length(wbasis[s])
+                bs = length(wbasis)
+                # for i = 1:cliquesize[s]
+                for i = 1:n
+                    if NormalSparse == false
+                       hnom = @variable(model, [1:2bs, 1:2bs], PSD)
+                       for j = 1:bs, k = j:bs
+                        #    bi = sadd(wbasis[s][j], wbasis[s][k], nb=nb)
+                           bi = sadd(wbasis[j], wbasis[k], nb=nb)
+                           Locb = bfind(tsupp, ltsupp, bi)
+                           if j == k
+                               @inbounds add_to_expression!(cons[Locb], hnom[j,k])
+                           else
+                               @inbounds add_to_expression!(cons[Locb], 2, hnom[j,k])
+                           end
+                        #    bi = sadd(sadd(wbasis[s][j], wbasis[s][k], nb=nb), [cliques[s][i];cliques[s][i]], nb=nb)
+                           bi = sadd(sadd(wbasis[j], wbasis[k], nb=nb), [i;i], nb=nb)
+                           Locb = bfind(tsupp, ltsupp, bi)
+                           if j == k
+                               @inbounds add_to_expression!(cons[Locb], hnom[j+bs,k+bs])
+                           else
+                               @inbounds add_to_expression!(cons[Locb], 2, hnom[j+bs,k+bs])
+                           end
+                        #    bi = sadd(sadd(wbasis[s][j], wbasis[s][k], nb=nb), [cliques[s][i]], nb=nb)
+                           bi = sadd(sadd(wbasis[j], wbasis[k], nb=nb), [i], nb=nb)
+                           Locb = bfind(tsupp, ltsupp, bi)
+                           if j == k
+                               @inbounds add_to_expression!(cons[Locb], 2, hnom[j,k+bs])
+                           else
+                               @inbounds add_to_expression!(cons[Locb], 2, hnom[j,k+bs]+hnom[k,j+bs])
+                           end
+                        end
+                    else
+                        for l = 1:length(hyblocks[s][i])
+                            hbs = length(hyblocks[s][i][l])
+                            hnom = @variable(model, [1:hbs, 1:hbs], PSD)
+                            for j = 1:hbs, k = j:hbs
+                                if hyblocks[s][i][l][k] <= bs
+                                    bi = sadd(wbasis[s][hyblocks[s][i][l][j]], wbasis[s][hyblocks[s][i][l][k]], nb=nb)
+                                elseif hyblocks[s][i][l][j] <= bs && hyblocks[s][i][l][k] > bs
+                                    bi = sadd(sadd(wbasis[s][hyblocks[s][i][l][j]], wbasis[s][hyblocks[s][i][l][k]-bs], nb=nb), [cliques[s][i]], nb=nb)
+                                else
+                                    bi = sadd(sadd(wbasis[s][hyblocks[s][i][l][j]-bs], wbasis[s][hyblocks[s][i][l][k]-bs], nb=nb), [cliques[s][i];cliques[s][i]], nb=nb)
+                                end
+                                Locb = bfind(tsupp, ltsupp, bi)
+                                if j == k
+                                    @inbounds add_to_expression!(cons[Locb], hnom[j,k])
+                                else
+                                    @inbounds add_to_expression!(cons[Locb], 2, hnom[j,k])
+                                end
+                            end
+                        end
+                    end
+                end
+            # end
+        end
+        pos = Vector{Vector{Vector{Union{VariableRef,Symmetric{VariableRef}}}}}(undef, cql)
+        for i = 1:cql
+            if (MomentOne == true || solution == true) && TS != false
+                bs = cliquesize[i]+1
+                pos0 = @variable(model, [1:bs, 1:bs], PSD)
+                for t = 1:bs, r = t:bs
+                    if t == 1 && r == 1
+                        bi = UInt16[]
+                    elseif t == 1 && r > 1
+                        bi = [cliques[i][r-1]]
+                    else
+                        bi = sadd(cliques[i][t-1], cliques[i][r-1], nb=nb)
+                    end
+                    Locb = bfind(tsupp, ltsupp, bi)
+                    if t == r
+                        @inbounds add_to_expression!(cons[Locb], pos0[t,r])
+                    else
+                        @inbounds add_to_expression!(cons[Locb], 2, pos0[t,r])
+                    end
+                end
+            end
+            pos[i] = Vector{Vector{Union{VariableRef,Symmetric{VariableRef}}}}(undef, 1+length(I[i]))
+            pos[i][1] = Vector{Union{VariableRef,Symmetric{VariableRef}}}(undef, cl[i][1])
+            for l = 1:cl[i][1]
+                @inbounds bs = blocksize[i][1][l]
+                if bs == 1
+                    pos[i][1][l] = @variable(model, lower_bound=0)
+                    @inbounds bi = sadd(basis[i][1][blocks[i][1][l][1]], basis[i][1][blocks[i][1][l][1]], nb=nb)
+                    Locb = bfind(tsupp, ltsupp, bi)
+                    @inbounds add_to_expression!(cons[Locb], pos[i][1][l])
+                else
+                    pos[i][1][l] = @variable(model, [1:bs, 1:bs], PSD)
+                    for t = 1:bs, r = t:bs
+                        @inbounds ind1 = blocks[i][1][l][t]
+                        @inbounds ind2 = blocks[i][1][l][r]
+                        @inbounds bi = sadd(basis[i][1][ind1], basis[i][1][ind2], nb=nb)
+                        Locb = bfind(tsupp, ltsupp, bi)
+                        if t == r
+                            @inbounds add_to_expression!(cons[Locb], pos[i][1][l][t,r])
+                        else
+                            @inbounds add_to_expression!(cons[Locb], 2, pos[i][1][l][t,r])
+                        end
+                    end
+                end
+            end
+        end
+        ## process inequality constraints
+        for i = 1:cql, (j, w) in enumerate(I[i])
+            pos[i][j+1] = Vector{Union{VariableRef,Symmetric{VariableRef}}}(undef, cl[i][j+1])
+            for l = 1:cl[i][j+1]
+                bs = blocksize[i][j+1][l]
+                if bs == 1
+                    pos[i][j+1][l] = @variable(model, lower_bound=0)
+                    ind = blocks[i][j+1][l][1]
+                    for s = 1:length(supp[w+1])
+                        @inbounds bi = sadd(sadd(basis[i][j+1][ind], supp[w+1][s], nb=nb), basis[i][j+1][ind], nb=nb)
+                        Locb = bfind(tsupp, ltsupp, bi)
+                        @inbounds add_to_expression!(cons[Locb], coe[w+1][s], pos[i][j+1][l])
+                    end
+                else
+                    pos[i][j+1][l] = @variable(model, [1:bs, 1:bs], PSD)
+                    for t = 1:bs, r = t:bs
+                        ind1 = blocks[i][j+1][l][t]
+                        ind2 = blocks[i][j+1][l][r]
+                        for s = 1:length(supp[w+1])
+                            @inbounds bi = sadd(sadd(basis[i][j+1][ind1], supp[w+1][s], nb=nb), basis[i][j+1][ind2], nb=nb)
+                            Locb = bfind(tsupp, ltsupp, bi)
+                            if t == r
+                                @inbounds add_to_expression!(cons[Locb], coe[w+1][s], pos[i][j+1][l][t,r])
+                            else
+                                @inbounds add_to_expression!(cons[Locb], 2*coe[w+1][s], pos[i][j+1][l][t,r])
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        ## process equality constraints
+        if numeq > 0
+            free = Vector{Vector{Vector{VariableRef}}}(undef, cql)
+            for i = 1:cql
+                if !isempty(J[i])
+                    free[i] = Vector{Vector{VariableRef}}(undef, length(J[i]))
+                    for (j, w) in enumerate(J[i])
+                        free[i][j] = @variable(model, [1:length(eblocks[i][j])])
+                        for (u,k) in enumerate(eblocks[i][j]), s = 1:length(supp[w+1])
+                            @inbounds bi = sadd(hbasis[i][j][k], supp[w+1][s], nb=nb)
+                            Locb = bfind(tsupp, ltsupp, bi)
+                            @inbounds add_to_expression!(cons[Locb], coe[w+1][s], free[i][j][u])
+                        end
+                    end
+                end
+            end
+        end
+        for i in ncc
+            if i <= m-numeq
+                pos0 = @variable(model, lower_bound=0)
+            else
+                pos0 = @variable(model)
+            end
+            for j = 1:length(supp[i+1])
+                Locb = bfind(tsupp, ltsupp, supp[i+1][j])
+                @inbounds add_to_expression!(cons[Locb], coe[i+1][j], pos0)
+            end
+        end
+        bc = zeros(ltsupp)
+        for i = 1:length(supp[1])
+            Locb = bfind(tsupp, ltsupp, supp[1][i])
+            if Locb === nothing
+               @error "The monomial basis is not enough!"
+               return nothing,nothing,nothing,nothing,nothing
+            else
+               bc[Locb] = coe[1][i]
+            end
+        end
+        @variable(model, lower)
+        cons[1] += lower
+        @constraint(model, con[i=1:ltsupp], cons[i]==bc[i])
+        @objective(model, Max, lower)
+        end
+        if QUIET == false
+            println("SDP assembling time: $time seconds.")
+            println("Solving the SDP...")
+        end
+        time = @elapsed begin
+        optimize!(model)
+        end
+        if QUIET == false
+            println("SDP solving time: $time seconds.")
+        end
+        SDP_status = termination_status(model)
+        objv = objective_value(model)
+        if SDP_status != MOI.OPTIMAL
+           println("termination status: $SDP_status")
+           status = primal_status(model)
+           println("solution status: $status")
+        end
+        println("optimum = $objv")
+        if Gram == true
+            GramMat = Vector{Vector{Vector{Union{Float64,Matrix{Float64}}}}}(undef, cql)
+            for i = 1:cql
+                GramMat[i] = Vector{Vector{Union{Float64,Matrix{Float64}}}}(undef, 1+length(I[i]))
+                for j = 1:1+length(I[i])
+                    GramMat[i][j] = [value.(pos[i][j][l]) for l = 1:cl[i][j]]
+                end
+            end
+            multiplier_equality = Vector{Vector{Vector{Float64}}}(undef, cql)
+            for i = 1:cql
+                if !isempty(J[i])
+                    multiplier_equality[i] = [value.(free[i][j]) for j = 1:length(J[i])]
+                end
+            end
+        end
+        if solution == true
+            measure = -dual.(con)
+            moment = get_moment(measure, tsupp, cliques, cql, cliquesize, nb=nb)
+        end
+        if Mommat == true
+            measure = -dual.(con)
+            moment = get_moment(measure, tsupp, cliques, cql, cliquesize, basis=basis, nb=nb)
+        end
+    end
+    return objv,ksupp,moment,GramMat,multiplier_equality,SDP_status, model
+end
+
 function solvesdp(n, m, supp::Vector{Vector{Vector{UInt16}}}, coe, basis, hbasis, cliques, cql, cliquesize, I, J, ncc, blocks, eblocks, cl, blocksize; 
     numeq=0, nb=0, QUIET=false, TS="block", solver="Mosek", tune=false, solve=true, solution=false, Gram=false, MomentOne=false, signsymmetry=nothing, 
     Mommat=false, cosmo_setting=cosmo_para(), mosek_setting=mosek_para(), dualize=false, normality=false, NormalSparse=false)
+    @show "SHITTTTTTTTTTTTTTTTTT"
     tsupp = Vector{UInt16}[]
     for i = 1:cql, j = 1:cl[i][1], k = 1:blocksize[i][1][j], r = k:blocksize[i][1][j]
         @inbounds bi = sadd(basis[i][1][blocks[i][1][j][k]], basis[i][1][blocks[i][1][j][r]], nb=nb)
