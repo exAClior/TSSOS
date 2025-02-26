@@ -416,7 +416,7 @@ end
 function solvesdp(n, m, supp, coe, basis, hbasis, blocks, eblocks, cl, blocksize; nb=0, numeq=0, gb=[], x=[], lead=[], solver="Mosek", TS="block",
     QUIET=true, solve=true, dualize=false, solution=false, MomentOne=false, Gram=false, cosmo_setting=cosmo_para(), mosek_setting=mosek_para(), 
     signsymmetry=false, normality=false, NormalSparse=false)
-    @show "HEYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY!"
+    @show "I am using src/blockpop_cons.jl"
     ksupp = zeros(UInt8, n, numele(blocksize[1]))
     k = 1
     for i = 1:cl[1], j = 1:blocksize[1][i], r = j:blocksize[1][i]

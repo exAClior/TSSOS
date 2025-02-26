@@ -9,30 +9,71 @@ f2 = x[2]^2 * x[3]^2 + (x[3]^2 - 1)^2
 
 f = f1 + f2
 
-opt, sol, data = cs_tssos_first([f], x, 2, CS=false, TS=false)
+opt, sol, data = cs_tssos_first([f], x, 2, CS=false, TS=false, solver= "COSMO")
 
-opt, sol, data = cs_tssos_first([f], x, 2, TS=false)
+# need to use COSMO otherwise this will stop due to slow progress
+opt, sol, data = cs_tssos_first([f], x, 2, TS=false, solver= "COSMO")
 
+# load data needed to construct sdp
 dense_data = deserialize("./example/data/dense_solvesdp_input_data.jls")
-
-opt, ksupp, moment, GramMat, multiplier_equality, SDP_status, model1 = TSSOS.solvesdp_debug(dense_data["n"], dense_data["m"], dense_data["supp"], dense_data["coe"], dense_data["basis"], dense_data["hbasis"], dense_data["cliques"], dense_data["cql"], dense_data["cliquesize"], dense_data["I"], dense_data["J"], dense_data["ncc"], dense_data["blocks"], dense_data["eblocks"], dense_data["cl"], dense_data["blocksize"], numeq=dense_data["numeq"], nb=dense_data["nb"], QUIET=false, signsymmetry=dense_data["signsymmetry"], TS=dense_data["TS"], solver=dense_data["solver"], tune=dense_data["tune"], dualize=dense_data["dualize"], solve=dense_data["solve"], solution=dense_data["solution"], MomentOne=dense_data["MomentOne"], Gram=dense_data["Gram"], Mommat=dense_data["Mommat"], cosmo_setting=dense_data["cosmo_setting"], mosek_setting=dense_data["mosek_setting"], normality=dense_data["normality"], NormalSparse=dense_data["NormalSparse"])
-
-model1
-
-is_solved_and_feasible(model1)
-
-
 cs_data = deserialize("./example/data/cs_solvesdp_input_data.jls")
 
-opt, ksupp, moment, GramMat, multiplier_equality, SDP_status, model2 = TSSOS.solvesdp_debug(cs_data["n"], cs_data["m"], cs_data["supp"], cs_data["coe"], cs_data["basis"], cs_data["hbasis"], cs_data["cliques"], cs_data["cql"], cs_data["cliquesize"], cs_data["I"], cs_data["J"], cs_data["ncc"], cs_data["blocks"], cs_data["eblocks"], cs_data["cl"], cs_data["blocksize"], numeq=cs_data["numeq"], nb=cs_data["nb"], QUIET=false, signsymmetry=cs_data["signsymmetry"], TS=cs_data["TS"], solver=cs_data["solver"], tune=cs_data["tune"], dualize=cs_data["dualize"], solve=cs_data["solve"], solution=cs_data["solution"], MomentOne=cs_data["MomentOne"], Gram=cs_data["Gram"], Mommat=cs_data["Mommat"], cosmo_setting=cs_data["cosmo_setting"], mosek_setting=cs_data["mosek_setting"], normality=cs_data["normality"], NormalSparse=cs_data["NormalSparse"])
+# remove all normality = true branch
+@assert !dense_data["normality"]
+@assert !cs_data["normality"]
 
-objective_value(model2)
+# remove all MomentOne = true || solution = true branch
+@assert !dense_data["MomentOne"]
+@assert !cs_data["MomentOne"]
+@assert !dense_data["solution"]
+@assert !cs_data["solution"]
 
-num_variables(model2)
-is_solved_and_feasible(model2)
+# remove all TS = true branch
+@assert !dense_data["TS"]
+@assert !cs_data["TS"]
+
+@assert  !(dense_data["numeq"] > 0)
+@assert  !(cs_data["numeq"] > 0)
+
+@assert !dense_data["tune"]
+@assert !cs_data["tune"]
 
 
+@assert !dense_data["dualize"]
+@assert !cs_data["dualize"]
+
+dense_data["cl"]
+cs_data["cl"]
+
+dense_data["cliquesize"]
+cs_data["cliquesize"]
+
+opt, ksupp, moment_dense, GramMat_dense, multiplier_equality, SDP_status, model_dense = TSSOS.solvesdp_debug(dense_data["n"], dense_data["m"], dense_data["supp"], dense_data["coe"], dense_data["basis"], dense_data["hbasis"], dense_data["cliques"], dense_data["cql"], dense_data["cliquesize"], dense_data["I"], dense_data["J"], dense_data["ncc"], dense_data["blocks"], dense_data["eblocks"], dense_data["cl"], dense_data["blocksize"], numeq=dense_data["numeq"], nb=dense_data["nb"], QUIET=false, signsymmetry=dense_data["signsymmetry"], TS=dense_data["TS"], solver="COSMO", tune=dense_data["tune"], dualize=dense_data["dualize"], solve=dense_data["solve"], solution=true, MomentOne=dense_data["MomentOne"], Gram=true, Mommat=true, cosmo_setting=dense_data["cosmo_setting"], mosek_setting=dense_data["mosek_setting"], normality=dense_data["normality"], NormalSparse=dense_data["NormalSparse"])
+
+@assert is_solved_and_feasible(model_dense)
+
+opt, ksupp, moment_cs, GramMat_cs, multiplier_equality, SDP_status, model_cs = TSSOS.solvesdp_debug(cs_data["n"], cs_data["m"], cs_data["supp"], cs_data["coe"], cs_data["basis"], cs_data["hbasis"], cs_data["cliques"], cs_data["cql"], cs_data["cliquesize"], cs_data["I"], cs_data["J"], cs_data["ncc"], cs_data["blocks"], cs_data["eblocks"], cs_data["cl"], cs_data["blocksize"], numeq=cs_data["numeq"], nb=cs_data["nb"], QUIET=false, signsymmetry=cs_data["signsymmetry"], TS=cs_data["TS"], solver="COSMO", tune=cs_data["tune"], dualize=cs_data["dualize"], solve=cs_data["solve"], solution=true, MomentOne=cs_data["MomentOne"], Gram=true, Mommat=true, cosmo_setting=cs_data["cosmo_setting"], mosek_setting=cs_data["mosek_setting"], normality=cs_data["normality"], NormalSparse=cs_data["NormalSparse"])
+
+@assert is_solved_and_feasible(model_cs)
+
+objective_value(model_cs)
 
 
-# opt, sol, data = tssos_first([f], x, 2, TS="block")
+# display(round.(moment_cs[1], digits=10))
+# display(round.(moment_cs[2], digits=10))
+
+# display(round.(moment_dense[1], digits=10))
+
+# corresponds to variable pos
+
+
+dense_data["cliques"]
+cs_data["cliques"]
+
+display(round.(GramMat_dense[1][1][1], digits=8))
+display(round.(GramMat_cs[1][1][1], digits=8))
+display(round.(GramMat_cs[2][1][1], digits=8))
+
+
+# opt, sol, data = tssos_first([f], x, 2, TS="block", solver="COSMO")
 # opt, sol, data = tssos_higher!(data, TS="block")
