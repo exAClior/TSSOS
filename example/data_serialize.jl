@@ -13,8 +13,6 @@ opt, sol, data = cs_tssos_first([f], x, 2, CS=false, TS=false, solver= "COSMO")
 
 cs_tssos_first_outer_dense = deserialize("./example/data/nblockmix/cs_tssos_first_outer.jls")
 
-cs_tssos_first_outer_dense["pop_before_polys_info"]
-cs_tssos_first_outer_dense["x_before_polys_info"]
 
 cs_tssos_first_outer_dense["supp_before_cs_tssos_first"]
 cs_tssos_first_outer_dense["coe_before_cs_tssos_first"]
@@ -78,6 +76,9 @@ opt, sol, data = cs_tssos_first(
 
 
 cs_tssos_first_inner_dense = deserialize("./example/data/nblockmix/cs_tssos_first_inner.jls")
+
+cs_tssos_first_inner_dense["basis_if_initially_non_empty"]
+cs_tssos_first_inner_dense["hbasis_if_initially_non_empty"]
 
 
 cs_tssos_first_inner_dense["supp_before_resort"]
