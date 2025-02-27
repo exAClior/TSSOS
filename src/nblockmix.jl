@@ -64,7 +64,7 @@ function cs_tssos_first(pop::Vector{Polynomial{true, T}}, x, d; nb=0, numeq=0, C
     cur_data = Dict()
     cur_data["pop_before_polys_info"] = pop
     cur_data["x_before_polys_info"] = x
-    cur_data["d_before_polys_info"] = d
+    cur_data["nb_before_polys_info"] = nb
 
     n,supp,coe = polys_info(pop, x, nb=nb)
 
@@ -126,31 +126,64 @@ function cs_tssos_first(supp::Vector{Vector{Vector{UInt16}}}, coe, n, d; numeq=0
     Mommat=false, tol=1e-4, cosmo_setting=cosmo_para(), mosek_setting=mosek_para(), normality=false, NormalSparse=false)
     println("*********************************** TSSOS ***********************************")
     println("TSSOS is launching...")
+
+    cur_data = Dict()
+
+
     m = length(supp) - 1
+
+    cur_data["m"] = m
+
+    cur_data["supp_before_resort"] = supp
+    cur_data["coe_before_resort"] = coe
 
     supp[1],coe[1] = resort(supp[1], coe[1])
 
+    cur_data["supp_after_resort"] = supp
+    cur_data["coe_after_resort"] = coe
+
     dc = [maximum(length.(supp[i])) for i=2:m+1]
+
+    cur_data["dc"] = dc
 
     if cliques != []  # if manually specified cliques
         cql = length(cliques)
         cliquesize = length.(cliques)
+
+        cur_data["cql_if_manually_specified"] = cql
+        cur_data["cliquesize_if_manually_specified"] = cliquesize
+
     else
         # automatically generate cliques
         time = @elapsed begin
         cliques,cql,cliquesize = clique_decomp(n, m, numeq, dc, supp, order=d, alg=CS, minimize=minimize)
+
+        cur_data["cliques_if_not_manually_specified"] = cliques
+        cur_data["cql_if_not_manually_specified"] = cql
+        cur_data["cliquesize_if_not_manually_specified"] = cliquesize
+
         end
         if CS != false && QUIET == false
             mc = maximum(cliquesize)
             println("Obtained the variable cliques in $time seconds. The maximal size of cliques is $mc.")
+            cur_data["mc_if_CS"] = mc
         end
     end
+
     I,J,ncc = assign_constraint(m, numeq, supp, cliques, cql)
+
+    cur_data["I_after_assign_constraint"] = I
+    cur_data["J_after_assign_constraint"] = J
+    cur_data["ncc_after_assign_constraint"] = ncc
 
     if d == "min"
         rlorder = [isempty(I[i]) && isempty(J[i]) ? 1 : ceil(Int, maximum(dc[[I[i]; J[i]]])/2) for i = 1:cql]
+
+        cur_data["rlorder_if_nonuniform_degree"] = rlorder
     else
         rlorder = d*ones(Int, cql)
+
+        cur_data["rlorder_if_uniform_degree"] = rlorder
     end
 
     if TS != false && QUIET == false
@@ -158,11 +191,20 @@ function cs_tssos_first(supp::Vector{Vector{Vector{UInt16}}}, coe, n, d; numeq=0
     end
 
     if isempty(basis)
+        cur_data["cql_if_initially_non_empty"] = cql
+
         basis = Vector{Vector{Vector{Vector{UInt16}}}}(undef, cql)
         hbasis = Vector{Vector{Vector{Vector{UInt16}}}}(undef, cql)
         for i = 1:cql
             basis[i] = Vector{Vector{Vector{UInt16}}}(undef, length(I[i])+1)
             basis[i][1] = get_sbasis(cliques[i], rlorder[i], nb=nb)
+
+            if isone(i)
+                cur_data["cliques[i]_get_sbasis"] = cliques[i]
+                cur_data["rlorder[i]_get_sbasis"] = rlorder[i]
+                cur_data["basis[i][1]_get_sbasis"] = basis[i][1]
+            end
+
             hbasis[i] = Vector{Vector{Vector{UInt16}}}(undef, length(J[i]))
             for s = 1:length(I[i])
                 basis[i][s+1] = get_sbasis(cliques[i], rlorder[i]-ceil(Int, dc[I[i][s]]/2), nb=nb)
@@ -171,6 +213,9 @@ function cs_tssos_first(supp::Vector{Vector{Vector{UInt16}}}, coe, n, d; numeq=0
                 hbasis[i][s] = get_sbasis(cliques[i], 2*rlorder[i]-dc[J[i][s]], nb=nb)
             end
         end
+
+        cur_data["basis_if_initially_non_empty"] = basis
+        cur_data["hbasis_if_initially_non_empty"] = hbasis
     end
 
     ksupp = nothing
@@ -181,75 +226,102 @@ function cs_tssos_first(supp::Vector{Vector{Vector{UInt16}}}, coe, n, d; numeq=0
         end
         sort!(ksupp)
         unique!(ksupp)
+
+        cur_data["ksupp_if_TS_non_false"] = ksupp
     end    
+
     time = @elapsed begin
     ss = nothing
 
     if NormalSparse == true || TS == "signsymmetry"
         ss = get_signsymmetry(supp, n)
+
+        cur_data["ss_if_NormalSparse_or_TS_signsymmetry"] = ss
     end
 
     blocks,eblocks,cl,blocksize = get_blocks(I, J, supp, cliques, cql, ksupp, basis, hbasis, nb=nb, TS=TS, merge=merge, md=md, nv=n, signsymmetry=ss)
+
+    cur_data["blocks_after_get_blocks"] = blocks
+    cur_data["eblocks_after_get_blocks"] = eblocks
+    cur_data["cl_after_get_blocks"] = cl
+    cur_data["blocksize_after_get_blocks"] = blocksize
 
     end
 
     if TS != false && QUIET == false
         mb = maximum(maximum.([maximum.(blocksize[i]) for i = 1:cql]))
         println("Obtained the block structure in $time seconds.\nThe maximal size of blocks is $mb.")
+        cur_data["mb_if_TS_non_false"] = mb
     end
 
     # Serialize all variables used in solvesdp
-    serialize_data = Dict(
-        "n" => n,
-        "m" => m,
-        "supp" => supp,
-        "coe" => coe,
-        "basis" => basis,
-        "hbasis" => hbasis,
-        "cliques" => cliques,
-        "cql" => cql,
-        "cliquesize" => cliquesize,
-        "I" => I,
-        "J" => J,
-        "ncc" => ncc,
-        "blocks" => blocks,
-        "eblocks" => eblocks,
-        "cl" => cl,
-        "blocksize" => blocksize,
-        "numeq" => numeq,
-        "nb" => nb,
-        "signsymmetry" => ss,
-        "TS" => TS,
-        "ksupp" => ksupp,
-        "solver" => solver,
-        "tune" => tune,
-        "dualize" => dualize,
-        "solve" => solve,
-        "solution" => solution,
-        "MomentOne" => MomentOne,
-        "Gram" => Gram,
-        "NormalSparse"=>NormalSparse,
-        "Mommat" => Mommat,
-        "cosmo_setting" => cosmo_setting,
-        "mosek_setting" => mosek_setting,
-        "normality" => normality,
-        "QUIET" => QUIET,
-    )
+    cur_data["n_before_sdpsolve"] = n
+    cur_data["m_before_sdpsolve"] = m
+    cur_data["supp_before_sdpsolve"] = supp
+    cur_data["coe_before_sdpsolve"] = coe
+    cur_data["basis_before_sdpsolve"] = basis
+    cur_data["hbasis_before_sdpsolve"] = hbasis
+    cur_data["cliques_before_sdpsolve"] = cliques
+    cur_data["cql_before_sdpsolve"] = cql
+    cur_data["cliquesize_before_sdpsolve"] = cliquesize
+    cur_data["I_before_sdpsolve"] = I
+    cur_data["J_before_sdpsolve"] = J
+    cur_data["ncc_before_sdpsolve"] = ncc
+    cur_data["blocks_before_sdpsolve"] = blocks
+    cur_data["eblocks_before_sdpsolve"] = eblocks
+    cur_data["cl_before_sdpsolve"] = cl
+    cur_data["blocksize_before_sdpsolve"] = blocksize
+    cur_data["numeq_before_sdpsolve"] = numeq
+    cur_data["nb_before_sdpsolve"] = nb
+    cur_data["signsymmetry_before_sdpsolve"] = ss
+    cur_data["TS_before_sdpsolve"] = TS
+    cur_data["ksupp_before_sdpsolve"] = ksupp
+    cur_data["solver_before_sdpsolve"] = solver
+    cur_data["tune_before_sdpsolve"] = tune
+    cur_data["dualize_before_sdpsolve"] = dualize
+    cur_data["solve_before_sdpsolve"] = solve
+    cur_data["solution_before_sdpsolve"] = solution
+    cur_data["MomentOne_before_sdpsolve"] = MomentOne
+    cur_data["Gram_before_sdpsolve"] = Gram
+    cur_data["NormalSparse_before_sdpsolve"] = NormalSparse
+    cur_data["Mommat_before_sdpsolve"] = Mommat
+    cur_data["cosmo_setting_before_sdpsolve"] = cosmo_setting
+    cur_data["mosek_setting_before_sdpsolve"] = mosek_setting
+    cur_data["normality_before_sdpsolve"] = normality
+    cur_data["QUIET_before_sdpsolve"] = QUIET
 
-    # serialize("./example/data/cs_solvesdp_input_data.jls", serialize_data)
 
     opt,ksupp,moment,GramMat,multiplier_equality,SDP_status = solvesdp(n, m, supp, coe, basis, hbasis, cliques, cql, cliquesize, I, J, ncc, blocks, eblocks, cl, blocksize, numeq=numeq, 
     nb=nb, QUIET=QUIET, signsymmetry=ss, TS=TS, solver=solver, tune=tune, dualize=dualize, solve=solve, solution=solution, MomentOne=MomentOne, Gram=Gram, Mommat=Mommat, 
     cosmo_setting=cosmo_setting, mosek_setting=mosek_setting, normality=normality, NormalSparse=NormalSparse)
+
+    cur_data["opt_after_sdpsolve"] = opt
+    cur_data["ksupp_after_sdpsolve"] = ksupp
+    cur_data["moment_after_sdpsolve"] = moment
+    cur_data["GramMat_after_sdpsolve"] = GramMat
+    cur_data["multiplier_equality_after_sdpsolve"] = multiplier_equality
+    cur_data["SDP_status_after_sdpsolve"] = SDP_status
+    
     data = mcpop_data(n, nb, m, numeq, supp, coe, basis, hbasis, ksupp, cql, cliquesize, cliques, I, J, ncc, cl, blocksize, blocks, eblocks, GramMat, multiplier_equality, moment, solver, SDP_status, tol, 1)
+
+    cur_data["data_after_sdpsolve"] = data
+
     sol = nothing
+
     if solution == true
         sol,gap,data.flag = approx_sol(opt, moment, n, cliques, cql, cliquesize, supp, coe, numeq=numeq, tol=tol)
         if data.flag == 1
             sol = gap > 0.5 ? randn(n) : sol
             sol,data.flag = refine_sol(opt, sol, data, QUIET=true, tol=tol)
         end
+
+        cur_data["sol_after_approx_sol"] = sol
+        cur_data["gap_after_approx_sol"] = gap
+        cur_data["flag_after_approx_sol"] = data.flag
     end
+
+    serialize("./example/data/nblockmix/cs_tssos_first_inner.jls", cur_data)
+    
     return opt,sol,data
 end
 
@@ -474,12 +546,16 @@ end
 function solvesdp(n, m, supp::Vector{Vector{Vector{UInt16}}}, coe, basis, hbasis, cliques, cql, cliquesize, I, J, ncc, blocks, eblocks, cl, blocksize; 
     numeq=0, nb=0, QUIET=false, TS="block", solver="Mosek", tune=false, solve=true, solution=false, Gram=false, MomentOne=false, signsymmetry=nothing, 
     Mommat=false, cosmo_setting=cosmo_para(), mosek_setting=mosek_para(), dualize=false, normality=false, NormalSparse=false)
+
     @show "I am using src/nblockmix.jl"
+    cur_data = Dict()
     tsupp = Vector{UInt16}[]
     for i = 1:cql, j = 1:cl[i][1], k = 1:blocksize[i][1][j], r = k:blocksize[i][1][j]
         @inbounds bi = sadd(basis[i][1][blocks[i][1][j][k]], basis[i][1][blocks[i][1][j][r]], nb=nb)
         push!(tsupp, bi)
     end
+    cur_data["tsupp_after_sadd"] = tsupp
+
     if TS != false && TS != "signsymmetry"
         for i = 1:cql 
             for (j, w) in enumerate(I[i]), l = 1:cl[i][j+1], t = 1:blocksize[i][j+1][l], r = t:blocksize[i][j+1][l], s = 1:length(supp[w+1])
@@ -497,19 +573,18 @@ function solvesdp(n, m, supp::Vector{Vector{Vector{UInt16}}}, coe, basis, hbasis
             push!(tsupp, supp[i+1][j])
         end
     end
+
     if (MomentOne == true || solution == true) && TS != false
         ksupp = copy(tsupp)
     end
+
     if normality == true
         if NormalSparse == true
             hyblocks = Vector{Vector{Vector{Vector{UInt16}}}}(undef, cql)
         end
-        # wbasis = Vector{Vector{Vector{UInt16}}}(undef, cql)
         wbasis = get_sbasis(Vector(1:n), 1, nb=nb)
         bs = length(wbasis)
-        # for s = 1:cql
-            # wbasis[s] = basis[s][1]
-            # bs = length(wbasis[s])
+
             if NormalSparse == true
                 hyblocks[s] = Vector{Vector{Vector{UInt16}}}(undef, cliquesize[s])
                 for i = 1:cliquesize[s]
@@ -551,18 +626,18 @@ function solvesdp(n, m, supp::Vector{Vector{Vector{UInt16}}}, coe, basis, hbasis
                     end
                 end
             else
-                # for i = 1:cliquesize[s], j = 1:bs, k = j:bs
                 for i = 1:n, j = 1:bs, k = j:bs
-                    # bi = sadd(sadd(wbasis[s][j], wbasis[s][k], nb=nb), [cliques[s][i];cliques[s][i]], nb=nb)
                     bi = sadd(sadd(wbasis[j], wbasis[k], nb=nb), [i;i], nb=nb)
                     push!(tsupp, bi)
-                    # bi = sadd(sadd(wbasis[s][j], wbasis[s][k], nb=nb), [cliques[s][i]], nb=nb)
                     bi = sadd(sadd(wbasis[j], wbasis[k], nb=nb), [i], nb=nb)
                     push!(tsupp, bi)
                 end
             end
-        # end
+        cur_data["hyblocks_if_normality"] = hyblocks
+        cur_data["wbasis_if_normality"] = wbasis
+        cur_data["G_if_normality"] = G
     end
+
     if (MomentOne == true || solution == true) && TS != false
         for i = 1:cql, j = 1:cliquesize[i]
             push!(tsupp, [cliques[i][j]])
@@ -579,6 +654,10 @@ function solvesdp(n, m, supp::Vector{Vector{Vector{UInt16}}}, coe, basis, hbasis
     else
         ksupp = tsupp
     end
+
+    cur_data["tsupp_before_solving"] = tsupp
+    cur_data["ksupp_before_solving"] = ksupp
+
     objv = moment = GramMat = multiplier_equality = SDP_status = nothing
     if solve == true
         ltsupp = length(tsupp)
@@ -620,15 +699,11 @@ function solvesdp(n, m, supp::Vector{Vector{Vector{UInt16}}}, coe, basis, hbasis
         time = @elapsed begin
         cons = [AffExpr(0) for i=1:ltsupp]
         if normality == true
-            # for s = 1:cql
-                # bs = length(wbasis[s])
                 bs = length(wbasis)
-                # for i = 1:cliquesize[s]
                 for i = 1:n
                     if NormalSparse == false
                        hnom = @variable(model, [1:2bs, 1:2bs], PSD)
                        for j = 1:bs, k = j:bs
-                        #    bi = sadd(wbasis[s][j], wbasis[s][k], nb=nb)
                            bi = sadd(wbasis[j], wbasis[k], nb=nb)
                            Locb = bfind(tsupp, ltsupp, bi)
                            if j == k
@@ -636,7 +711,6 @@ function solvesdp(n, m, supp::Vector{Vector{Vector{UInt16}}}, coe, basis, hbasis
                            else
                                @inbounds add_to_expression!(cons[Locb], 2, hnom[j,k])
                            end
-                        #    bi = sadd(sadd(wbasis[s][j], wbasis[s][k], nb=nb), [cliques[s][i];cliques[s][i]], nb=nb)
                            bi = sadd(sadd(wbasis[j], wbasis[k], nb=nb), [i;i], nb=nb)
                            Locb = bfind(tsupp, ltsupp, bi)
                            if j == k
@@ -644,7 +718,6 @@ function solvesdp(n, m, supp::Vector{Vector{Vector{UInt16}}}, coe, basis, hbasis
                            else
                                @inbounds add_to_expression!(cons[Locb], 2, hnom[j+bs,k+bs])
                            end
-                        #    bi = sadd(sadd(wbasis[s][j], wbasis[s][k], nb=nb), [cliques[s][i]], nb=nb)
                            bi = sadd(sadd(wbasis[j], wbasis[k], nb=nb), [i], nb=nb)        
                            Locb = bfind(tsupp, ltsupp, bi)
                            if j == k
@@ -833,12 +906,24 @@ function solvesdp(n, m, supp::Vector{Vector{Vector{UInt16}}}, coe, basis, hbasis
         if solution == true
             measure = -dual.(con)
             moment = get_moment(measure, tsupp, cliques, cql, cliquesize, nb=nb)
+
+            cur_data["measure_after_solving"] = measure
+            cur_data["moment_after_solving"] = moment
         end
         if Mommat == true
             measure = -dual.(con)
             moment = get_moment(measure, tsupp, cliques, cql, cliquesize, basis=basis, nb=nb)
+
+            cur_data["measure_after_solving"] = measure
+            cur_data["moment_after_solving"] = moment
         end
+
+
+        cur_data["GramMat_after_solving"] = GramMat
+        cur_data["pos_after_solving"] = pos
     end
+
+    serialize("./example/data/nblockmix/solvesdp.jil", cur_data)
     return objv,ksupp,moment,GramMat,multiplier_equality,SDP_status
 end
 

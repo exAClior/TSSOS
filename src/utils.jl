@@ -80,7 +80,21 @@ function bin_add(bi, bj, nb)
     return bs
 end
 
+# used to merge exponents of monomials?
 function sadd(a, b; nb=0)
+    # This function performs a sorted addition of two vectors of indices.
+    # It concatenates vectors 'a' and 'b', sorts the result, and handles binary variables.
+    #
+    # Input arguments:
+    # - a, b: vectors to be combined
+    # - nb: number of binary variables (default: 0)
+    #
+    # If nb > 0, the function treats the first nb elements as binary variables,
+    # removing pairs of identical indices (implementing modulo 2 addition).
+    #
+    # Output:
+    # - A sorted vector containing the combined indices with binary variables handled appropriately
+    
     c = [a; b]
     sort!(c)
     if nb > 0
