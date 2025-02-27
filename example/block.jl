@@ -72,10 +72,48 @@ opt, ksupp, moment_cs, GramMat_cs, multiplier_equality, SDP_status, model_cs = T
 objective_value(model_cs)
 
 
-# display(round.(moment_cs[1], digits=10))
-# display(round.(moment_cs[2], digits=10))
 
-# display(round.(moment_dense[1], digits=10))
+cs_data["cliques"]
+
+cs_clique1_vars = x[cs_data["cliques"][1]]
+cs_clique2_vars = x[cs_data["cliques"][2]]
+
+cs_clique1_basis = vcat([monomials(cs_clique1_vars, max_degree) for max_degree in 0:2]...)
+
+cs_clique1_monomial2moment_matrix_idx = Dict([mono_r * mono_c => (i, j) for (i, mono_r) in enumerate(cs_clique1_basis), (j, mono_c) in enumerate(cs_clique1_basis)])
+
+cs_clique2_basis = vcat([monomials(cs_clique2_vars, max_degree) for max_degree in 0:2]...)
+
+cs_clique2_monomial2moment_matrix_idx = Dict([mono_r * mono_c => (i, j) for (i, mono_r) in enumerate(cs_clique2_basis), (j, mono_c) in enumerate(cs_clique2_basis)])
+
+reconstructed_moment_cs_total = zeros(size(moment_dense[1]))
+
+dense_basis = vcat([monomials(x, max_degree) for max_degree in 0:2]...)
+for (i,mono_r) in enumerate(dense_basis), (j,mono_c) in enumerate(dense_basis)
+	if haskey(cs_clique1_monomial2moment_matrix_idx, mono_r * mono_c)
+		reconstructed_moment_cs_total[i,j] += moment_cs[1][cs_clique1_monomial2moment_matrix_idx[mono_r * mono_c]...]
+	end
+	if haskey(cs_clique2_monomial2moment_matrix_idx, mono_r * mono_c)
+		reconstructed_moment_cs_total[i,j] += moment_cs[2][cs_clique2_monomial2moment_matrix_idx[mono_r * mono_c]...]
+	end
+end
+
+using LinearAlgebra
+
+reconstructed_moment_cs_total
+
+eigvals(reconstructed_moment_cs_total)
+
+moment_dense[1]
+
+
+
+
+
+display(round.(moment_cs[1], digits=10))
+display(round.(moment_cs[2], digits=10))
+
+display(round.(moment_dense[1], digits=10))
 
 # corresponds to variable pos
 

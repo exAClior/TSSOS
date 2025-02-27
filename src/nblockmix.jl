@@ -80,12 +80,16 @@ function cs_tssos_first(supp::Vector{Vector{Vector{UInt16}}}, coe, n, d; numeq=0
     println("*********************************** TSSOS ***********************************")
     println("TSSOS is launching...")
     m = length(supp) - 1
+
     supp[1],coe[1] = resort(supp[1], coe[1])
+
     dc = [maximum(length.(supp[i])) for i=2:m+1]
-    if cliques != []
+
+    if cliques != []  # if manually specified cliques
         cql = length(cliques)
         cliquesize = length.(cliques)
     else
+        # automatically generate cliques
         time = @elapsed begin
         cliques,cql,cliquesize = clique_decomp(n, m, numeq, dc, supp, order=d, alg=CS, minimize=minimize)
         end
@@ -95,14 +99,17 @@ function cs_tssos_first(supp::Vector{Vector{Vector{UInt16}}}, coe, n, d; numeq=0
         end
     end
     I,J,ncc = assign_constraint(m, numeq, supp, cliques, cql)
+
     if d == "min"
         rlorder = [isempty(I[i]) && isempty(J[i]) ? 1 : ceil(Int, maximum(dc[[I[i]; J[i]]])/2) for i = 1:cql]
     else
         rlorder = d*ones(Int, cql)
     end
+
     if TS != false && QUIET == false
         println("Starting to compute the block structure...")
     end
+
     if isempty(basis)
         basis = Vector{Vector{Vector{Vector{UInt16}}}}(undef, cql)
         hbasis = Vector{Vector{Vector{Vector{UInt16}}}}(undef, cql)
@@ -118,6 +125,7 @@ function cs_tssos_first(supp::Vector{Vector{Vector{UInt16}}}, coe, n, d; numeq=0
             end
         end
     end
+
     ksupp = nothing
     if TS != false
         ksupp = reduce(vcat, supp)
@@ -129,11 +137,15 @@ function cs_tssos_first(supp::Vector{Vector{Vector{UInt16}}}, coe, n, d; numeq=0
     end    
     time = @elapsed begin
     ss = nothing
+
     if NormalSparse == true || TS == "signsymmetry"
         ss = get_signsymmetry(supp, n)
     end
+
     blocks,eblocks,cl,blocksize = get_blocks(I, J, supp, cliques, cql, ksupp, basis, hbasis, nb=nb, TS=TS, merge=merge, md=md, nv=n, signsymmetry=ss)
+
     end
+
     if TS != false && QUIET == false
         mb = maximum(maximum.([maximum.(blocksize[i]) for i = 1:cql]))
         println("Obtained the block structure in $time seconds.\nThe maximal size of blocks is $mb.")
