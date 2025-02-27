@@ -60,10 +60,57 @@ If `MomentOne=true`, add an extra first-order moment PSD constraint to the momen
 function cs_tssos_first(pop::Vector{Polynomial{true, T}}, x, d; nb=0, numeq=0, CS="MF", cliques=[], basis=[], hbasis=[], minimize=false, TS="block", merge=false, md=3, solver="Mosek", 
     tune=false, dualize=false, QUIET=false, solve=true, solution=false, Gram=false, MomentOne=false, Mommat=false, tol=1e-4, cosmo_setting=cosmo_para(), mosek_setting=mosek_para(), 
     normality=false, NormalSparse=false) where {T<:Number}
+
+    cur_data = Dict()
+    cur_data["pop_before_polys_info"] = pop
+    cur_data["x_before_polys_info"] = x
+    cur_data["d_before_polys_info"] = d
+
     n,supp,coe = polys_info(pop, x, nb=nb)
+
+    cur_data["n_after_polys_info"] = n
+    cur_data["supp_after_polys_info"] = supp
+    cur_data["coe_after_polys_info"] = coe
+
+    cur_data["supp_before_cs_tssos_first"] = supp
+    cur_data["coe_before_cs_tssos_first"] = coe
+    cur_data["n_before_cs_tssos_first"] = n
+    cur_data["d_before_cs_tssos_first"] = d
+    cur_data["numeq_before_cs_tssos_first"] = numeq
+    cur_data["nb_before_cs_tssos_first"] = nb
+    cur_data["CS_before_cs_tssos_first"] = CS
+    cur_data["cliques_before_cs_tssos_first"] = cliques
+    cur_data["basis_before_cs_tssos_first"] = basis
+    cur_data["hbasis_before_cs_tssos_first"] = hbasis
+    cur_data["minimize_before_cs_tssos_first"] = minimize
+    cur_data["TS_before_cs_tssos_first"] = TS
+    cur_data["merge_before_cs_tssos_first"] = merge
+    cur_data["md_before_cs_tssos_first"] = md
+    cur_data["QUIET_before_cs_tssos_first"] = QUIET
+    cur_data["solver_before_cs_tssos_first"] = solver
+    cur_data["tune_before_cs_tssos_first"] = tune
+    cur_data["dualize_before_cs_tssos_first"] = dualize
+    cur_data["solve_before_cs_tssos_first"] = solve
+    cur_data["solution_before_cs_tssos_first"] = solution
+    cur_data["Gram_before_cs_tssos_first"] = Gram
+    cur_data["MomentOne_before_cs_tssos_first"] = MomentOne
+    cur_data["Mommat_before_cs_tssos_first"] = Mommat
+    cur_data["tol_before_cs_tssos_first"] = tol
+    cur_data["cosmo_setting_before_cs_tssos_first"] = cosmo_setting
+    cur_data["mosek_setting_before_cs_tssos_first"] = mosek_setting
+    cur_data["normality_before_cs_tssos_first"] = normality
+    cur_data["NormalSparse_before_cs_tssos_first"] = NormalSparse
+
     opt,sol,data = cs_tssos_first(supp, coe, n, d, numeq=numeq, nb=nb, CS=CS, cliques=cliques, basis=basis, hbasis=hbasis, minimize=minimize, TS=TS,
     merge=merge, md=md, QUIET=QUIET, solver=solver, tune=tune, dualize=dualize, solve=solve, solution=solution, Gram=Gram, MomentOne=MomentOne,
     Mommat=Mommat, tol=tol, cosmo_setting=cosmo_setting, mosek_setting=mosek_setting, normality=normality, NormalSparse=NormalSparse)
+
+    cur_data["opt_after_cs_tssos_first"] = opt
+    cur_data["sol_after_cs_tssos_first"] = sol
+    cur_data["data_after_cs_tssos_first"] = data
+
+    serialize("./example/data/nblockmix/cs_tssos_first_outer.jls", cur_data)
+
     return opt,sol,data
 end
 
