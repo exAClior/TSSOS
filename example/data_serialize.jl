@@ -115,7 +115,11 @@ cs_tssos_first_inner_dense["cl_after_get_blocks"]
 cs_tssos_first_inner_dense["blocksize_after_get_blocks"]
 
 
+solvesdp_dense = deserialize("./example/data/nblockmix/solvesdp.jil")
 
 
+cs_tssos_first_inner_dense["blocksize_before_sdpsolve"]
+
+solvesdp_dense["tsupp_after_sadd"]
 
 

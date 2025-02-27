@@ -11,8 +11,10 @@ f2 = x[2]^2 * x[3]^2 + (x[3]^2 - 1)^2
 f = f1 + f2
 ```
 
-= cs_tssos_first (outer)
+We are trying to verify Correlative Sparse relaxation for this problem is not
+accurate as the dense relaxation at degree 2.
 
+= cs_tssos_first (outer)
 
 == polys_info
 
@@ -34,9 +36,11 @@ supp = [[1, 1, 1, 1], [1, 1, 2, 2], [2, 2, 3, 3], [3, 3, 3, 3], [1, 2], [3, 3], 
 coe = [[1, 1, 1, 1, -2, -2, 2]]
 ```
 
+For example `[1,1,1,1]` represents monomial `x_1^4`
+
 == cs_tssos_first (inner)
 
-Actual function for constructing the SDP and obtaining lower bound.
+Actual function for constructing the SDP and solves it. 
 
 Input 
 ```
@@ -80,6 +84,11 @@ data = TSSOS.mcpop_data(3, 0, 0, 0, [[[], [1, 1, 1, 1], [1, 1, 2, 0x0002], [0x00
 == resort
 
 Sorts the objective polynomial's coefficient and support based on the monomial order.
+
+```
+supp[1] is objective
+supp[2:n] is constraints
+```
 
 Input 
 ```
@@ -212,8 +221,22 @@ cl = [[1]] # clique length
 blocksize = [[[10]]]
 ```
 
-= solvesdp_debug
+= solvesdp
+ 
 input
 ```
 
 ```
+
+== sadd
+
+Adding exponents of two monomials. `nb` determines if binary variables are
+involved.
+
+input
+```
+blocksize =  [[[0x000a]]]
+nb = 0
+
+```
+
