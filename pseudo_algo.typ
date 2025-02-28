@@ -90,8 +90,9 @@ $1_(alpha,bold(0)) = cases(
 
 		State[]
 
-		Assign([`G_matrices`], [{}]) // Initialize an empty collection of matrices
+		Assign([`G_matrices`], [( )]) // Initialize an empty collection of matrices
 		Assign([`j`], [0])
+		
 		For(cond:[`cur_basis` in (`obj_basis` $union$ `cons_basis`)],{
 		    Assign([`G_matrices[j]`], FnI[init_psd_matrix_variable][length(`cur_basis`)])
 		    Assign([`j`], [`j` + 1])
@@ -143,14 +144,14 @@ $1_(alpha,bold(0)) = cases(
 
 #algorithm({
   import algorithmic: *
-  Function("compute_c_alpha_j", args: ([`alpha`],[`constraint`] ,[`cur_basis`]), {
+  Function("compute_c_alpha_j", args: ([`alpha`],[`constraint_poly`] ,[`cur_basis`]), {
 		Assign([`c_alpha_j`], FnI[init_matrix][length(`cur_basis`), length(`cur_basis`)]) // Initialize matrix
 		
 		For(cond:[ i in 1:length(`cur_basis`)],{
 			For(cond:[ k in 1:length(`cur_basis`)],{
-				Assign([`cur_term`], [ $#(`constraint`) dot #(`cur_basis`)_i dot #(`cur_basis`)_k$])
-				If(cond: [`alpha` in `cur_term` ],{
-					Assign([$#(`c_alpha_j`)_(i,k)$], FnI[get_coefficient][`cur_term`, `alpha`])
+				Assign([`cur_polynomial`], [ $#(`constraint_poly`) dot #(`cur_basis`)_i dot #(`cur_basis`)_k$])
+				If(cond: [`alpha` in `cur_polynomial` ],{
+					Assign([$#(`c_alpha_j`)_(i,k)$], FnI[get_coefficient][`cur_polynomial`, `alpha`])
 				})
 				Else({
 					Assign([$#(`c_alpha_j`)_(i,k)$], [0])
@@ -165,13 +166,13 @@ $1_(alpha,bold(0)) = cases(
 #algorithm({
   import algorithmic: *
   Function("halfdegree", args: ([`constraints`],), {
-    Assign([`degrees`], [])
+    Assign([`half_degrees`], [$emptyset$])
     For(cond:[`constraint` in `constraints`],{
         Assign([`max_degree`], FnI[get_max_degree][`constraint`])
-        Assign([`half_degree`], [`max_degree` / 2])
-        Assign([`degrees`], [`degrees` $union$ `half_degree`])
+        Assign([`half_degree`], FnI[ceil][`max_degree` / 2])
+        Assign([`half_degrees`], [`half_degrees` $union$ `half_degree`])
     })
-    Return[`degrees`]
+    Return[`half_degrees`]
   })
 })
 
