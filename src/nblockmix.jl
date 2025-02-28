@@ -419,6 +419,7 @@ function solvesdp_debug(n, m, supp::Vector{Vector{Vector{UInt16}}}, coe, basis, 
         time = @elapsed begin
         cons = [AffExpr(0) for i=1:ltsupp]
 
+        # which clique, which obj/cons, which block in Term Sparse
         pos = Vector{Vector{Vector{Union{VariableRef,Symmetric{VariableRef}}}}}(undef, cql)
         for i = 1:cql
             pos[i] = Vector{Vector{Union{VariableRef,Symmetric{VariableRef}}}}(undef, 1+length(I[i]))
