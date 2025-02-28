@@ -395,6 +395,10 @@ function solvesdp_debug(n, m, supp::Vector{Vector{Vector{UInt16}}}, coe, basis, 
     numeq=0, nb=0, QUIET=false, TS="block", solver="Mosek", tune=false, solve=true, solution=false, Gram=false, MomentOne=false, signsymmetry=nothing,
     Mommat=false, cosmo_setting=cosmo_para(), mosek_setting=mosek_para(), dualize=false, normality=false, NormalSparse=false)
     tsupp = Vector{UInt16}[]
+
+    # i which clique
+    # j which var in clique i
+    # k,r which entry in moment matrix
     for i = 1:cql, j = 1:cl[i][1], k = 1:blocksize[i][1][j], r = k:blocksize[i][1][j]
         @inbounds bi = sadd(basis[i][1][blocks[i][1][j][k]], basis[i][1][blocks[i][1][j][r]], nb=nb)
         push!(tsupp, bi)
@@ -402,8 +406,6 @@ function solvesdp_debug(n, m, supp::Vector{Vector{Vector{UInt16}}}, coe, basis, 
 
     sort!(tsupp)
     unique!(tsupp)
-
-    display(tsupp)
 
     ksupp = tsupp
     objv = moment = GramMat = multiplier_equality = SDP_status = nothing
@@ -550,6 +552,7 @@ function solvesdp(n, m, supp::Vector{Vector{Vector{UInt16}}}, coe, basis, hbasis
     @show "I am using src/nblockmix.jl"
     cur_data = Dict()
     tsupp = Vector{UInt16}[]
+
     for i = 1:cql, j = 1:cl[i][1], k = 1:blocksize[i][1][j], r = k:blocksize[i][1][j]
         @inbounds bi = sadd(basis[i][1][blocks[i][1][j][k]], basis[i][1][blocks[i][1][j][r]], nb=nb)
         push!(tsupp, bi)

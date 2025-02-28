@@ -8,17 +8,17 @@ f1 = x[1]^4 + (x[1] * x[2] - 1)^2
 f2 = x[2]^2 * x[3]^2 + (x[3]^2 - 1)^2
 
 f = f1 + f2
-# arch = 10 - sum(x[1]^2 + x[2]^2)
-# arch2 = 10 - sum(x[2]^2 + x[3]^2)
+arch = 10 - sum(x[1]^2 + x[2]^2)
+arch2 = 10 - sum(x[2]^2 + x[3]^2)
 
-opt, sol, data = cs_tssos_first([f], x, 2, CS=false, TS=false, solver= "COSMO")
-# opt, sol, data = cs_tssos_first([f;arch;arch2], x, 2, CS=false, TS=false, solver= "COSMO")
+# opt, sol, data = cs_tssos_first([f], x, 2, CS=false, TS=false, solver= "COSMO")
+opt, sol, data = cs_tssos_first([f;arch;arch2], x, 2, CS=false, TS=false, solver= "COSMO")
 
 cs_tssos_first_outer_dense = deserialize("./example/data/nblockmix/cs_tssos_first_outer.jls")
 
 # need to use COSMO otherwise this will stop due to slow progress
 opt, sol, data = cs_tssos_first([f], x, 2, TS=false, solver= "COSMO")
-# opt, sol, data = cs_tssos_first([f;arch;arch2], x, 2, TS=false, solver= "COSMO")
+opt, sol, data = cs_tssos_first([f;arch;arch2], x, 2, TS=false, solver= "COSMO")
 
 
 

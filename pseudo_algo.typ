@@ -28,19 +28,27 @@
 
 		Cmt[Group Constraints according to variables and cliques]
 
-		Assign([`clique_eq_cons` , `clique_ineq_cons`],FnI[assign_constraint][`eq_cons`, `ineq_cons`, `cliques`])
+		Assign([`clique_eq_cons` , `clique_ineq_cons`, `clique_with_no_constraint`],FnI[assign_constraint][`eq_cons`, `ineq_cons`, `cliques`])
 
 		State[]
 
 		Cmt[If Correlative Sparse, need to loop over all cliques]
 
+		Cmt[Get Standard Monomial Basis upto some order] 
+
 		Assign([`obj_basis`], FnI[get_sbasis][`cliques_eq_cons`, $d$])	
 
-		Cmt[ #text(red)[ Why is this sparse?]]
+		State[]
 
-		Assign([`cons_basis`],FnI[get_sbasis][`cliques_ineq_cons`, $d$])
+		Assign([`halfdegree_of_each_constraint`],FnI[halfdegree][[`cliques_ineq_cons`]])
+
+		Assign([`cons_basis`],FnI[get_sbasis][`cliques_ineq_cons`, $d$ - `halfdegree_of_each_constraint`])
+
+		State[]
 
 		Assign([`opt`, `moment`],FnI[solvesdp][$n$,`obj`, `eq_cons`, `ineq_cons`, `obj_basis`, `cons_basis`])
+
+		State[]
 
 		Cmt[Why is this step necessary?]
 
@@ -49,6 +57,39 @@
 		Return[opt, sol]
   })
 })
+
+#algorithm({
+  import algorithmic: *
+  Function("clique_decomp", args: ([$n$], [`obj`], [`eq_cons`], [`ineq_cons`]), {
+
+		Assign([`G`],FnI[get_variable_dependency_graph][$n$,`obj`, `eq_cons`, `ineq_cons`])
+
+		Assign([`G`], FnI[chordal_extention][`G`])
+
+		Assign([`cliques`], FnI[get_cliques][`G`])
+
+		Return[`cliques`]
+  })
+})
+
+
+#algorithm({
+  import algorithmic: *
+  Function("solvesdp", args: ([`n`], [`obj`], [`eq_cons`], [`ineq_cons`], [`obj_basis`], [`cons_basis`]), {
+
+		Assign([`tsupp`], FnI[get_monomials_in_moment_mat][`obj_basis`, `cons_basis`])
+		
+
+  })
+})
+
+#algorithm({
+  import algorithmic: *
+  Function("approx_sol", args: ([`opt`], [`moment`], [`n`], [`clique_eq_cons`], [`clique_ineq_cons`], [`obj`], [`eq_cons`], [`ineq_cons`]), {
+
+  })
+})
+
 
 #algorithm({
   import algorithmic: *

@@ -95,11 +95,6 @@ cs_tssos_first_inner_dense["J_after_assign_constraint"]
 cs_tssos_first_inner_dense["ncc_after_assign_constraint"]
 
 
-cs_tssos_first_inner_dense["I_after_assign_constraint"]
-cs_tssos_first_inner_dense["J_after_assign_constraint"]
-cs_tssos_first_inner_dense["ncc_after_assign_constraint"]
-
-
 cs_tssos_first_inner_dense["rlorder_if_uniform_degree"]
 
 
