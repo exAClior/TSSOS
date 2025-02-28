@@ -28,8 +28,9 @@
 
 		Cmt[Group Constraints according to variables and cliques]
 
-		Cmt[#text(red)[When do we have non-empty `contraint_not_belong_to_single_clique`?]]
-		Assign([`clique_eq_cons` , `clique_ineq_cons`, `constraint_not_belong_to_single_clique`],FnI[assign_constraint][`eq_cons`, `ineq_cons`, `cliques`])
+		Cmt[#text(red)[When do we have non-empty `constraint_not_belong_to_single_clique`?]]
+		Assign([`clique_eq_cons` , `clique_ineq_cons`, `constraint_not_belong_to_single_clique`],
+           FnI[assign_constraint][`eq_cons`, `ineq_cons`, `cliques`])
 
 		State[]
 
@@ -37,25 +38,21 @@
 
 		Cmt[Get Standard Monomial Basis upto some order] 
 
-		Assign([`obj_basis`], FnI[get_sbasis][`cliques_eq_cons`, $d$])	
+		Assign([`obj_basis`], FnI[get_sbasis][`clique_eq_cons`, $d$])
 
 		State[]
 
-		Assign([`halfdegree_of_each_constraint`],FnI[halfdegree][[`cliques_ineq_cons`]])
+		Assign([`halfdegree_of_each_constraint`],FnI[halfdegree][`clique_ineq_cons`])
 
-		Assign([`cons_basis`],FnI[get_sbasis][`cliques_ineq_cons`, $d$ - `halfdegree_of_each_constraint`])
-
-		State[]
-
-		Assign([`opt`, `moment`],FnI[solvesdp][$n$,`obj`, `eq_cons`, `ineq_cons`, `obj_basis`, `cons_basis`])
+		Assign([`cons_basis`],FnI[get_sbasis][`clique_ineq_cons`, $d$ - `halfdegree_of_each_constraint`])
 
 		State[]
 
-		Cmt[Why is this step necessary?]
+		Assign([`opt`],FnI[solvesdp][$n$,`obj`, `eq_cons`, `ineq_cons`, `obj_basis`, `cons_basis`])
 
-		Assign([sol], FnI[approx_sol][`opt`, `moment`, $n$, `clique_eq_cons`, `clique_ineq_cons`, `obj`, `eq_cons`, `ineq_cons`])
+		State[]
 
-		Return[opt, sol]
+		Return[`opt`]
   })
 })
 
@@ -82,23 +79,35 @@ $
 
 where $t_j$ is the moment matrix size of $j$th constraint or objective.
 
-$1_(alpha,bold(0))$ is $0$ unless $alpha = bold(0)$.
+$1_(alpha,bold(0)) = cases(
+  1 "if" alpha = bold(0),
+  0 "otherwise"
+)$
 
 
 
 
 #algorithm({
   import algorithmic: *
-  Function("solvesdp", args: ([`n`], [`obj`], [`eq_cons`], [`ineq_cons`], [`obj_basis`], [`cons_basis`]), {
+  Function("solvesdp", args: ([$n$], [`obj`], [`eq_cons`], [`ineq_cons`], [`obj_basis`], [`cons_basis`]), {
 
-		Cmt[Get monomials appeared in moment matrices]
 		Assign([`tsupp`], [#FnI[get_support][`obj_basis`] $union$ ($union_(sigma in #(`cons_basis`))$ #FnI[get_support][$sigma$]) ])
 		Assign([`all_cons`],[`{1}` $union$ `ineq_cons` $union$ `eq_cons`]) 
 
 		Assign([`b`],FnI[init_variable][1])
-		For(cond:[(`j`, `cur_basis`) in enumerate(`cons_basis` $union$ `obj_basis`)],{
-			Assign([$G_j$], FnI[init_variable][length(`cur_basis`)])
+
+		State[]
+
+		Assign([`G_matrices`], [{}]) // Initialize an empty collection of matrices
+		Assign([`j`], [0])
+		For(cond:[`cur_basis` in (`obj_basis` $union$ `cons_basis`)],{
+		    Assign([`G_matrices[j]`], FnI[init_psd_matrix_variable][length(`cur_basis`)])
+		    Assign([`j`], [`j` + 1])
 		})
+
+		State[]
+		
+		Assign([`SDP_constraints`], FnI[init_sdp_constraints][])
 
 		For(cond:[`alpha` in `tsupp`],{
 			Cmt[Get coefficient of monomial in objective]
@@ -106,17 +115,22 @@ $1_(alpha,bold(0))$ is $0$ unless $alpha = bold(0)$.
 
 			Assign([`include_b`], FnI[is_equal][`alpha`, $bold(0)$])	
 
-			For(cond:[(`j`, `cur_basis`) in enumerate(`obj_basis` $union$ `cons_basis`)],{
-				Assign([`c_alpha_j`], FnI[compute_c_alpha_j][`alpha`, $#(`all_cons`)_j$ ,`cur_basis`])
+			Assign([`constraint_sum`], [0]) // Initialize sum of traces
+			Assign([`j`], [0])
+			For(cond:[`cur_basis` in (`obj_basis` $union$ `cons_basis`)],{
+			    Assign([`c_alpha_j`], FnI[compute_c_alpha_j][`alpha`, $#(`all_cons`)_#(`j`)$, `cur_basis`])
+			    Assign([`trace_j`], FnI[trace][`c_alpha_j` $dot$ `G_matrices[j]`])
+			    Assign([`constraint_sum`], [`constraint_sum` + `trace_j`])
+			    Assign([`j`], [`j` + 1])
 			})
-
-			Assign([`j_trace`], FnI[trace][`c_alpha_j` $dot$ `G_j`])
-			Assign([`SDP_cons_j`], FnI[set_constraint_equal][`f_alpha` - b $dot$ `include_b`, `j_trace`])
-
+			
+			Assign([`SDP_cons_alpha`], FnI[set_constraint_equal][`f_alpha` - `b` $dot$ `include_b`, `constraint_sum`])
+			Assign([`SDP_constraints`], [`SDP_constraints` $union$ `SDP_cons_alpha`])
 		})
-	Assign([`opt`],FnI[optimize][$G_j$, `b`, `SDP_cons_j`])
+		
+		Assign([`opt`],FnI[optimize][`G_matrices`, `b`, `SDP_constraints`])
 
-	Return([`opt`])
+		Return([`opt`])
   })
 })
 
@@ -138,94 +152,99 @@ $1_(alpha,bold(0))$ is $0$ unless $alpha = bold(0)$.
 #algorithm({
   import algorithmic: *
   Function("compute_c_alpha_j", args: ([`alpha`],[`constraint`] ,[`cur_basis`]), {
+		Assign([`c_alpha_j`], FnI[init_matrix][length(`cur_basis`), length(`cur_basis`)]) // Initialize matrix
+		
 		For(cond:[ i in 1:length(`cur_basis`)],{
 			For(cond:[ k in 1:length(`cur_basis`)],{
 				Assign([`cur_term`], [ $#(`constraint`) dot #(`cur_basis`)_i dot #(`cur_basis`)_k$])
 				If(cond: [`alpha` in `cur_term` ],{
-					Assign([$#(`c_alpha_j`)_(i,k)$], FnI[get_coefficient][`alpha`, `cur_term`])
+					Assign([$#(`c_alpha_j`)_(i,k)$], FnI[get_coefficient][`cur_term`, `alpha`])
 				})
 				Else({
 					Assign([$#(`c_alpha_j`)_(i,k)$], [0])
 				})
 			})
 		})
+		
+		Return[`c_alpha_j`] // Return the matrix
   })
 })
 
 #algorithm({
   import algorithmic: *
-  Function("approx_sol", args: ([`opt`], [`moment`], [`n`], [`clique_eq_cons`], [`clique_ineq_cons`], [`obj`], [`eq_cons`], [`ineq_cons`]), {
-
+  Function("halfdegree", args: ([`constraints`]), {
+    Assign([`degrees`], [])
+    For(cond:[`constraint` in `constraints`],{
+        Assign([`max_degree`], FnI[get_max_degree][`constraint`])
+        Assign([`half_degree`], [`max_degree` / 2])
+        Assign([`degrees`], [`degrees` $union$ `half_degree`])
+    })
+    Return[`degrees`]
   })
 })
+
+#algorithm({
+  import algorithmic: *
+  Function("init_sdp_constraints", args: (), {
+    Return[{}] // Empty set of constraints
+  })
+})
+
+// #algorithm({
+//   import algorithmic: *
+//   Function("approx_sol", args: ([`opt`], [`moment`], [`n`], [`clique_eq_cons`], [`clique_ineq_cons`], [`obj`], [`eq_cons`], [`ineq_cons`]), {
+
+//   })
+// })
 
 
 #algorithm({
   import algorithmic: *
-  Function("cs_nctssos_first", args: ("pop", "x", "d", "keyword arguments"), {
-		Cmt[obtain more efficient way to represent monomials] 
+  Function("cs_nctssos_first", args: ("obj", "eq_cons", "ineq_cons", $n$, $d$), {
 
-		Assign([n, supp, coe ], FnI[polys_info][pop, x] )
-
+		Cmt[ Canonicalize the support of objective ]
+		Assign([ `obj_supp`, `obj_coe` ], FnI[canonicalize][`obj`]) // Fixed arguments
+		
 		State[]
-
-		Cmt[ Merge terms with canonically same support in objective]
-
-		If(cond: [`obj` is "trace"],{
-			Assign([ `obj_supp`, `obj_coe` ], FnI[cyclic_canon][`obj_supp`, `obj_coe`])
-		})
-		ElsIf(cond: [`obj` is "eigen"],{
-			Assign([ `obj_supp`, `obj_coe` ], FnI[sym_canon][`obj_supp`, `obj_coe`])
-		})
-
+		
+		Assign([`cliques`], FnI[clique_decomp][$n$, `obj`, `eq_cons`, `ineq_cons`])
+		
 		State[]
-
-		Cmt[Decompose into cliques, we can come in]
-		If(cond: [Require Correlative Sparsity], {
-			Assign([`cliques`], FnI[clique_decomp][n , m, numeq, dc, supp])
-		})
-
-		State[]
-
-		Cmt[Group Constraints according to variables and cliques]
-
-		Assign([J , ncc],FnI[assign_constraint][m, supp, cliques, cql])
-
-		State[]
-
-
+		
 		Cmt[Get basis for objective and constraints]
-
-		For([clique in `cliques`],{
-
-			Assign([objective basis], FnI[get_ncbasis][`cliquesize`, `d`, `clique`])	
-
-			Assign([constraint basis], FnI[get_ncbasis][`cliquesize`, `d`, `clique`])	
-
-			If(cond: [variables contains commutative ones],{
-				Assign([basis], FnI[simplify][`objective basis`, `constraint basis`])
-			})
+		Assign([`all_obj_basis`], [{}])
+		Assign([`all_cons_basis`], [{}])
+		
+		For([`clique` in `cliques`],{
+		    Assign([`clique_size`], FnI[length][`clique`]) // Define clique_size
+		    
+		    Assign([`obj_basis_for_clique`], FnI[get_ncbasis][`clique_size`, `d`, `clique`])
+		    Assign([`all_obj_basis`], [`all_obj_basis` $union$ `obj_basis_for_clique`])
+		    
+		    Assign([`cons_basis_for_clique`], FnI[get_ncbasis][`clique_size`, `d`, `clique`])
+		    Assign([`all_cons_basis`], [`all_cons_basis` $union$ `cons_basis_for_clique`])
+		    
+		    If(cond: [FnI[has_commutative_vars][`clique`]],{
+		        Assign([`obj_basis_for_clique`], FnI[simplify][`obj_basis_for_clique`])
+		        Assign([`cons_basis_for_clique`], FnI[simplify][`cons_basis_for_clique`])
+		    })
 		})
-
-
+		
 		Cmt[Reduce the support by considering commutative portion of variables]
-		Assign([tsupp], FnI[reduce!.][tsupp, obj=obj, par])
-
-		Cmt[ Apply Term Sparsity by chordal extension, #text(red)[We can improve this]]
-		Assign([blocks, eblocks, cl, blocksize],
-			FnI[get_blocks][I, J , supp, cliques, cql, ...])
-
-		Assign([opt, ksupp, moment, GramMat ...],FnI[solvesdp][n,m,...])
-
+		Assign([`tsupp`], FnI[get_support][`all_obj_basis` $union$ `all_cons_basis`])
+		Assign([`tsupp`], FnI[reduce_support][`tsupp`, `obj`])
+		
+		Cmt[ Apply Term Sparsity by chordal extension]
+		Assign([`blocks`, `eblocks`, `cl`, `blocksize`],
+		    FnI[get_blocks][`tsupp`, `cliques`])
+		
+		Assign([`opt`, `moment`, `GramMat`],FnI[solvesdp][$n$, `obj`, `eq_cons`, `ineq_cons`, 
+		                                         `all_obj_basis`, `all_cons_basis`])
+		
 		Cmt[Construct the data structure for higher order improvement]
-		Assign([data], FnI[mcpop_data][n, nb, m, numeq, ...])
-
-		Cmt[Why is this step necessary?]
-		If(cond: [`solution` is true],{
-			Assign([sol, gap, data.flag], FnI[approx_sol][n,m,...])
-		})
-
-		Return[opt, sol, data]
+		Assign([`data`], FnI[mcpop_data][$n$, `blocks`, `eblocks`, `cl`, `blocksize`])
+		
+		Return[`opt`, `moment`, `data`]
   })
 })
 
