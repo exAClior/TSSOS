@@ -3,14 +3,6 @@
 
 #text(red)[ We did not consider Term Sparsity in this algorithm]
 
-- pop: list of polynomials containing objective and constraints
-- n: number of variables
-- supp: support of the monomials
-- coe: coefficients of the monomials
-- m: number of constraints
-- numeq: number of equality constraints
-- dc: degree of the constraints and objectives 
-
 #algorithm({
   import algorithmic: *
   Function("cs_tssos_first", args: ([`obj`],[`eq_cons`],[`ineq_cons`], [$n$], [$d$]), {
@@ -172,7 +164,7 @@ $1_(alpha,bold(0)) = cases(
 
 #algorithm({
   import algorithmic: *
-  Function("halfdegree", args: ([`constraints`]), {
+  Function("halfdegree", args: ([`constraints`],), {
     Assign([`degrees`], [])
     For(cond:[`constraint` in `constraints`],{
         Assign([`max_degree`], FnI[get_max_degree][`constraint`])
