@@ -1,75 +1,52 @@
 #import "@preview/algorithmic:0.1.0"
 #import algorithmic: algorithm
 
+#text(red)[ We did not consider Term Sparsity in this algorithm]
+
+- pop: list of polynomials containing objective and constraints
+- n: number of variables
+- supp: support of the monomials
+- coe: coefficients of the monomials
+- m: number of constraints
+- numeq: number of equality constraints
+- dc: degree of the constraints and objectives 
+
 #algorithm({
   import algorithmic: *
-  Function("cs_tssos_first", args: ("pop", "x", "d", "keyword arguments"), {
-		Cmt[obtain more efficient way to represent monomials] 
-
-		Assign([ n, supp, coe ], FnI[polys_info][pop, x] )
-
-		State[]
+  Function("cs_tssos_first", args: ([`obj`],[`eq_cons`],[`ineq_cons`], [$n$], [$d$]), {
 
 		Cmt[ Merge monomials with same support in objective]
 
-    Assign([ `supp[1]`, `coe[1]` ], FnI[resort][`supp[1]`, `coe[1]`])
+    Assign([ `obj`], FnI[resort][`obj`])
 
 		State[]
 
-		If(cond: [`clique` is not specified], {
-			Assign([`cliques`], FnI[clique_decomp][n , m, numeq, dc, supp])
-		})
+		Cmt[Automatically generate cliques]
+		Assign([`cliques`], FnI[clique_decomp][$n$ , `obj`, `eq_cons`, `ineq_cons`])
 
 		State[]
 
 		Cmt[Group Constraints according to variables and cliques]
 
-		Assign([I , J , ncc],FnI[assign_constraint][m, numeq, supp, cliques, cql])
+		Assign([`clique_eq_cons` , `clique_ineq_cons`],FnI[assign_constraint][`eq_cons`, `ineq_cons`, `cliques`])
 
 		State[]
 
-		Cmt[Determine max degree of monomials in subproblem for each clique]
+		Cmt[If Correlative Sparse, need to loop over all cliques]
 
-		If(cond: [`d` is "min"],{
-			Assign([`rlorder`], [max degree in I , J for each clique])	
-		})
+		Assign([`obj_basis`], FnI[get_sbasis][`cliques_eq_cons`, $d$])	
 
-		Else({
-			Assign([`rlorder`], [d for all cliques])	
-		})
+		Cmt[ #text(red)[ Why is this sparse?]]
 
-		State[]
+		Assign([`cons_basis`],FnI[get_sbasis][`cliques_ineq_cons`, $d$])
 
-		If(cond: [custom `basis` not specified],{
-
-			Cmt[If Correlative Sparse, need to loop over all cliques]
-
-			Assign([basis], FnI[get_sbasis][`cliques`, `rlorder`])	
-
-			Cmt[ #text(red)[ Why is this sparse?]]
-
-			Assign([hbasis],FnI[get_sbasis][])
-		})
-
-		If(cond: [Term Sparsity is required],{
-			Assign([ksupp], [ supp + square of all terms in supp])
-
-			Cmt[ Apply Term Sparsity by chordal extension, #text(red)[We can improve this]]
-			Assign([blocks, eblocks, cl, blocksize],
-			FnI[get_blocks][I, J , supp, cliques, cql, ...])
-		})
-
-		Assign([opt, ksupp, moment, GramMat ...],FnI[solvesdp][n,m,...])
-
-		Cmt[Construct the data structure for higher order improvement]
-		Assign([data], FnI[mcpop_data][n, nb, m, numeq, ...])
+		Assign([`opt`, `moment`],FnI[solvesdp][$n$,`obj`, `eq_cons`, `ineq_cons`, `obj_basis`, `cons_basis`])
 
 		Cmt[Why is this step necessary?]
-		If(cond: [`solution` is true],{
-			Assign([sol, gap, data.flag], FnI[approx_sol][n,m,...])
-		})
 
-		Return[opt, sol, data]
+		Assign([sol], FnI[approx_sol][`opt`, `moment`, $n$, `clique_eq_cons`, `clique_ineq_cons`, `obj`, `eq_cons`, `ineq_cons`])
+
+		Return[opt, sol]
   })
 })
 
