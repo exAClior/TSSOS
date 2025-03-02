@@ -2,6 +2,84 @@
   block(radius:4pt, fill:gray.transparentize(90%), inset:1em, width:99%, text(it))
 }
 
+= `craig.jl`
+
+== Problem Setup
+
+```
+@polyvar x[1:5]
+Φ = [1 - x[1]^4 - x[2]^4 + 0.1*x[3]^4, 10*x[3]^4 - x[1]^4 - x[2]^4]
+ψ = [4*x[4]^2*(x[1]^2 + x[2]^2) - (sum(x[1:4].^2) - x[5]^2)^2, 6 - x[4], x[4] - 4, 1 - x[5], x[5] - 0.5]
+```
+
+== homogenize
+
+Make terms in polynomial of same degree
+
+```
+Φ = homogenize.(Φ, z)
+```
+
+Input
+```
+Φ = [1 - x[1]^4 - x[2]^4 + 0.1*x[3]^4, 10*x[3]^4 - x[1]^4 - x[2]^4]
+```
+
+Output
+```
+Φ =  [-x₁⁴ - x₂⁴ + 0.1x₃⁴ + z⁴ ,-x₁⁴ - x₂⁴ + 10.0x₃⁴]
+```
+
+== add_psatz!
+
+Similar to `cs_tssos_first!`. Instead of finding the minimum value of a
+polynomial, only finds the Putinar style SOS representation.
+
+
+
+= cpop.jl
+
+Polynomial Optimization with complex variables.
+
+```
+@polyvar x[1:5]
+Φ = [1 - x[1]^4 - x[2]^4 + 0.1*x[3]^4, 10*x[3]^4 - x[1]^4 - x[2]^4]
+ψ = [4*x[4]^2*(x[1]^2 + x[2]^2) - (sum(x[1:4].^2) - x[5]^2)^2, 6 - x[4], x[4] - 4, 1 - x[5], x[5] - 0.5]
+```
+
+Make polynomials be homogeneous
+
+```
+@polyvar z # homogenization variable
+Φ = homogenize.(Φ, z)
+ψ = homogenize.(ψ, z)
+d = 2 # relaxation order
+model = Model(optimizer_with_attributes(Mosek.Optimizer))
+set_optimizer_attribute(model, MOI.Silent(), false)
+```
+
+
+== Problem Setup
+
+Explicitly constructing variables `z[1:n]` and hermitian conjugates `z[n+1:2n]`
+```
+n = 5
+@polyvar z[1:2n]
+```
+
+
+```
+basis1 = cbasis(z[1:n])
+basis2 = cbasis(z[n+1:2n])
+P = randn(length(basis1), length(basis1))
+Q = randn(length(basis1), length(basis1))
+f = basis2'*((P+P')/2+im*(Q-Q')/2)*basis1
+h = sum(z[i]*z[i+n] for i = 1:n) - 1
+```
+
+
+
+
 = Problem Setup
 
 ```
